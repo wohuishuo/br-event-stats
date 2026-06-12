@@ -1,0 +1,25 @@
+server:
+  port: 8083
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: br-event-stats
+  datasource:
+    url: jdbc:mysql://localhost:3306/book_realm_stats?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    username: root
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update   # 开发期自动建表;上线改 validate
+    open-in-view: false
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
