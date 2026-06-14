@@ -1,36 +1,41 @@
-# 📊 事件统计服务 · br-event-stats
+# BookRealm Event Stats
 
-**[书域 BookRealm](https://github.com/wohuishuo/book-realm) 电子书平台的统计模块(MVP-3)**
+**事件统计服务:消费登录事件,接收阅读进度,提供统计查询 API**
 
-书域是拆成 5 个独立模块的电子书平台;本仓负责**行为统计**:
-用户中心发布登录事件,本服务通过 RabbitMQ 消费并聚合;阅读 App 通过 HTTP 上报阅读进度。
+这是一个可独立运行的 Spring Boot + RabbitMQ 示例服务。它把“记录行为”从登录和阅读主链路里拆出来,让主功能保持轻,统计能力异步增长。
 
-> ✅ MVP-3 第一版已完成:UserLogin 事件消费、登录日志、登录聚合、阅读进度上报、统计查询、4 条测试、真实联调均通过。
+[BookRealm 平台书](https://wohuishuo.github.io/book-realm/) · [本服务实战章](https://wohuishuo.github.io/book-realm/project/event-stats)
 
-## 它解决什么
+## 一分钟理解
 
-登录和阅读是主链路,统计是旁路。旁路不能拖慢主链路。
+**br-event-stats 负责回答“用户什么时候登录、读到哪里”。**
 
-```
-用户中心登录成功
-   │ 发布 UserLogin
-   ▼
-RabbitMQ fanout: user.events
-   ├─ login.log   → LoginLogConsumer   → login_logs
-   └─ login.stats → LoginStatsConsumer → login_stats
+用户中心登录成功后发布 `UserLogin` 事件;本服务通过 RabbitMQ 消费事件,保存登录日志并聚合每日登录数。Android App 阅读时通过 HTTP 上报进度;本服务按用户、书、日期更新阅读统计。
 
-阅读 App
-   └─ POST /api/stats/progress → reading_stats
+```mermaid
+flowchart LR
+  Auth["用户中心登录成功"] --> MQ["RabbitMQ fanout:user.events"]
+  MQ --> Log["LoginLogConsumer\n保存原始日志"]
+  MQ --> Agg["LoginStatsConsumer\n聚合每日登录"]
+  App["Android App 阅读器"] --> Progress["POST /api/stats/progress"]
+  Progress --> Reading["reading_stats"]
 ```
 
-App 不直连 RabbitMQ;移动端只调用 HTTP API。
+## 已实现功能
+
+| 能力 | 说明 |
+| --- | --- |
+| 登录日志 | 消费 `UserLogin` 事件,保存每次登录记录 |
+| 登录聚合 | 按日期与登录端类型统计 App/Web/Desktop 登录数 |
+| 阅读进度 | 接收 App 上报的 `userId/bookId/chapterId/paragraphIndex` |
+| 查询 API | 提供登录统计与阅读统计查询接口 |
 
 ## 快速开始
 
 ```powershell
 # 1. 启动依赖
 rabbitmq-server -detached
-docker exec bookrealm-library-mysql mysql -uroot -e "CREATE DATABASE IF NOT EXISTS book_realm_stats DEFAULT CHARACTER SET utf8mb4;"
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS book_realm_stats DEFAULT CHARACTER SET utf8mb4;"
 
 # 2. 启动服务
 mvn spring-boot:run
@@ -39,7 +44,7 @@ mvn spring-boot:run
 curl http://localhost:8083/api/health
 ```
 
-Swagger: <http://localhost:8083/api/swagger-ui.html>
+Swagger:<http://localhost:8083/api/swagger-ui.html>
 
 ## API
 
@@ -61,42 +66,24 @@ Swagger: <http://localhost:8083/api/swagger-ui.html>
 }
 ```
 
-## 真实验证
+## 在 BookRealm 中的位置
 
-```powershell
-# 阅读进度
-curl -X POST http://localhost:8083/api/stats/progress `
-  -H "Content-Type: application/json" `
-  -d "{\"userId\":2,\"bookId\":1,\"chapterId\":1,\"paragraphIndex\":7}"
+| 上游/下游 | 关系 |
+| --- | --- |
+| [user-center-team-project](https://github.com/wohuishuo/user-center-team-project) | 发布 `UserLogin` 事件 |
+| [br-reader-app](https://github.com/wohuishuo/br-reader-app) | HTTP 上报阅读进度 |
+| [book-realm](https://github.com/wohuishuo/book-realm) | 平台总书和完整教学 |
 
-# 触发用户中心真实登录事件
-curl -X POST http://localhost/api/user/login `
-  -H "Content-Type: application/json" `
-  -d "{\"userAccount\":\"root\",\"userPassword\":\"12345678\",\"loginType\":\"App\"}"
-
-# 查询登录统计
-curl http://localhost:8083/api/stats/logins
-```
-
-实测结果:登录后当天 `appLogins=1,total=1`;阅读进度接口写入 `reading_stats`。
-
-## 项目文档
+## 文档
 
 | 文档 | 内容 |
 | --- | --- |
 | [`docs/design.md`](docs/design.md) | 事件驱动设计、表结构、接口边界 |
 | [`docs/notes.md`](docs/notes.md) | 真实踩坑与联调记录 |
-| [平台书 · MVP-3 实战章](https://wohuishuo.github.io/book-realm/project/event-stats) | 平台视角讲解 |
+| [平台书实战章](https://wohuishuo.github.io/book-realm/project/event-stats) | 站在完整平台视角讲解本服务 |
 
 ## 测试
 
 ```powershell
 mvn test
 ```
-
-当前 4 条测试:
-
-- UserLogin 事件写登录日志并聚合 App 登录数;
-- 阅读进度按 user+book+day upsert;
-- 阅读进度 HTTP 接口可用;
-- 登录/阅读查询接口返回数组。
