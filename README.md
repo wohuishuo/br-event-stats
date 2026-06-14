@@ -9,9 +9,9 @@
 
 ## 快速开始
 
-``powershell
+```powershell
 # 后端依赖一键起(MySQL/MQ 等):book-realm 仓的 ./start-platform.ps1
 mvn spring-boot:run     # :8083,Swagger: http://localhost:8083/api/swagger-ui.html
-``
+```
 
 讲解见平台书:[MVP-3 实战章](https://wohuishuo.github.io/book-realm/project/event-stats)
